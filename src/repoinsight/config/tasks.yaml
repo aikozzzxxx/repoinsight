@@ -1,0 +1,184 @@
+crawl_repo:
+  description: >
+    Clone the repository at {repo_url} and perform a complete structural analysis.
+
+    Steps:
+    1. Use GitCloneTool to clone the repository into a local temporary directory.
+    2. Use FileSummaryTool to get a high-level overview of the repo structure.
+    3. Use ASTParserTool to parse all Python files and extract functions, classes, and imports.
+    4. Use DependencyGraphTool to build the module dependency graph from the AST results.
+
+    All intermediate results go into context for the final step.
+  expected_output: >
+    A single JSON object (repo_graph) with this exact structure:
+    {{
+      "repo_name": "string",
+      "repo_url": "string",
+      "language": "string (e.g. Python)",
+      "files": integer,
+      "lines": integer,
+      "top_level_module": "string",
+      "modules": [list of module info objects],
+      "dependency_graph": {{"nodes": [...], "edges": [...]}},
+      "core_files": [list of most-referenced module names],
+      "complexity_hotspots": [list of high-complexity module names],
+      "dependencies": [list of dependency package names]
+    }}
+    The output MUST be valid, parsable JSON. No extra text or markdown wrapping.
+  agent: repo_crawler
+  async_execution: false
+
+map_architecture:
+  description: >
+    You receive a repo_graph — a JSON object describing the repository structure,
+    modules, and dependency graph.
+
+    Your task:
+    1. Examine the dependency graph's nodes and edges to classify the architectural style.
+       Common patterns to look for: MVC, layered architecture, hexagonal/ports-and-adapters,
+       plugin-based, event-driven, monolith with emergent layering.
+    2. Group related modules into logical layers or domains.
+    3. For each group, describe its responsibility in 1-2 sentences.
+    4. Generate a Mermaid.js graph (flowchart TD format) that visualizes the module
+       relationships. Use subgraphs to show logical groupings.
+    5. Identify potential architectural concerns: circular dependencies, god modules,
+       missing abstraction layers, tight coupling.
+
+    Input format: {repo_graph}
+  expected_output: >
+    A well-structured markdown document with:
+    - ## Architecture Analysis
+    - **Detected Pattern**: (e.g. Layered Architecture with MVC controllers)
+    - ## Module Map (table of module groups with responsibilities)
+    - ## Architecture Diagram (Mermaid flowchart TD with subgraphs)
+    - ## Concerns (bulleted list of architectural issues found)
+    Output as clean markdown, no wrapping code fences around the whole thing.
+  agent: architecture_mapper
+  async_execution: true
+  context:
+    - crawl_repo
+
+review_code:
+  description: >
+    You receive a repo_graph with a list of core_files and complexity_hotspots.
+    Your task is to review the code quality of these files.
+
+    For each file in complexity_hotspots (prioritize these), evaluate:
+    1. Naming conventions (functions, classes, variables)
+    2. Function/method length (too long = >50 lines)
+    3. Cyclomatic complexity signals (deep nesting, many if/else, many loops)
+    4. Error handling (try/except usage, proper exception types)
+    5. Documentation (docstrings, comments on complex logic)
+    6. Code duplication patterns
+
+    Input format: {repo_graph}
+  expected_output: >
+    Produce a JSON quality_report:
+    {{
+      "overall_score": float (0.0-10.0),
+      "issues": [
+        {{
+          "file": "string",
+          "line": integer or null,
+          "severity": "P0" | "P1" | "P2",
+          "category": "naming" | "complexity" | "error_handling" | "documentation" | "duplication",
+          "description": "string",
+          "suggestion": "string"
+        }}
+      ],
+      "strengths": ["string (what the codebase does well)"]
+    }}
+    The output MUST be valid, parsable JSON. No extra text or markdown wrapping.
+  agent: code_reviewer
+  async_execution: true
+  context:
+    - crawl_repo
+
+audit_security:
+  description: >
+    You receive a repo_graph with dependency and file information.
+    Perform a Tree-of-Thoughts security audit using 3 parallel analysis paths:
+
+    Path 1 — OWASP Top 10:
+    Check the codebase for common web vulnerabilities: injection flaws, broken
+    authentication, sensitive data exposure, XXE, broken access control, security
+    misconfiguration, XSS, insecure deserialization, known vulnerable components,
+    insufficient logging/monitoring.
+
+    Path 2 — Dependency Vulnerabilities:
+    Examine the dependencies list for packages with known CVEs, outdated versions,
+    or unmaintained packages. Flag any dependency that's >1 year behind latest.
+
+    Path 3 — Code-Level Threats:
+    Search for hardcoded secrets (API keys, tokens, passwords), unsafe use of
+    eval()/exec(), path traversal risks, command injection vectors, insecure
+    file permissions, and missing input validation.
+
+    After all 3 paths complete, synthesize findings. If paths disagree on risk
+    level, take the majority vote (2 of 3). In case of tie, default to higher risk.
+    Produce a unified security assessment.
+
+    Input format: {repo_graph}
+  expected_output: >
+    A JSON security_report:
+    {{
+      "risk_level": "low" | "medium" | "high" | "critical",
+      "path_results": {{
+        "owasp": {{"findings": [...], "risk": "string"}},
+        "dependencies": {{"findings": [...], "risk": "string"}},
+        "code_threats": {{"findings": [...], "risk": "string"}}
+      }},
+      "vulnerabilities": [
+        {{
+          "id": "VULN-001",
+          "severity": "low" | "medium" | "high" | "critical",
+          "category": "string",
+          "file": "string or null",
+          "description": "string",
+          "remediation": "string"
+        }}
+      ],
+      "recommendations": ["string (actionable security improvement)"]
+    }}
+    MUST be valid, parsable JSON. No extra text or markdown wrapping.
+  agent: security_auditor
+  async_execution: true
+  context:
+    - crawl_repo
+
+synthesize_docs:
+  description: >
+    You are the final stage in the analysis pipeline. You receive the outputs from
+    three specialist agents:
+    - Architecture analysis (markdown)
+    - Code quality report (JSON)
+    - Security audit report (JSON)
+
+    Your task: synthesize all of this into a single GUIDE.md document.
+
+    The GUIDE.md should contain:
+    1. # Project Overview — what this project does, inferred from structure
+    2. # Architecture — include the Mermaid diagram from the architecture analysis
+    3. # Module Navigation — for each key module, describe what it does and where to find it
+    4. # Development Setup — how to get started developing on this project
+    5. # Code Quality — summary score, key findings, prioritized fix suggestions
+    6. # Security — risk level, top vulnerabilities, mitigation steps
+    7. # Contributing — brief guide for new contributors based on project conventions found
+
+    Make it clean, professional, and genuinely useful for onboarding.
+
+    Inputs:
+    Architecture: {map_architecture}
+    Code Quality: {review_code}
+    Security: {audit_security}
+  expected_output: >
+    A complete GUIDE.md document in clean markdown format.
+    Include the Mermaid diagram block (```mermaid ... ```).
+    Use tables where appropriate for clarity.
+    No wrapping code fences around the entire output — the output IS the guide.
+  agent: doc_synthesizer
+  async_execution: false
+  context:
+    - map_architecture
+    - review_code
+    - audit_security

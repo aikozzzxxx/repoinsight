@@ -1,0 +1,22 @@
+name: repoinsight
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.10
+  - pip
+  - pip:
+      - crewai>=1.0.0
+      - litellm>=1.50.0
+      - streamlit>=1.35.0
+      - rich>=13.0.0
+      - chromadb>=0.5.0
+      - pydantic>=2.0.0
+      - pyyaml>=6.0
+      - python-dotenv>=1.0.0
+      - duckduckgo-search>=6.0.0
+      - gitpython>=3.1.0
+      - networkx>=3.0
+      - pytest>=8.0.0
+      - pytest-asyncio>=0.24.0
+      - ruff>=0.6.0

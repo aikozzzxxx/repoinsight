@@ -1,0 +1,32 @@
+[project]
+name = "repoinsight"
+version = "0.1.0"
+description = "Multi-agent repository analysis platform using CrewAI"
+requires-python = ">=3.10"
+dependencies = [
+    "crewai>=1.0.0",
+    "litellm>=1.50.0",
+    "streamlit>=1.35.0",
+    "rich>=13.0.0",
+    "chromadb>=0.5.0",
+    "pydantic>=2.0.0",
+    "pyyaml>=6.0",
+    "python-dotenv>=1.0.0",
+    "duckduckgo-search>=6.0.0",
+    "gitpython>=3.1.0",
+    "networkx>=3.0",
+]
+
+[project.scripts]
+repoinsight = "repoinsight.main:app"
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
